@@ -18,6 +18,20 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 
+// Wallet metadata cho các ví chưa cài
+const WALLET_METADATA = {
+  Petra: {
+    name: "Petra",
+    icon: "https://petra.app/favicon.ico",
+    url: "https://petra.app/",
+  },
+  Nightly: {
+    name: "Nightly",
+    icon: "https://nightly.app/favicon.ico",
+    url: "https://nightly.app/download",
+  },
+};
+
 export function WalletButton() {
   const {
     address,
@@ -32,7 +46,18 @@ export function WalletButton() {
 
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
 
-  const handleWalletSelect = async (walletName: string) => {
+   const handleWalletSelect = async (walletName: string) => {
+    const installedWallet = wallets?.find(w => w.name === walletName);
+    
+    if (!installedWallet || !installedWallet.readyState) {
+      // Wallet chưa cài, mở link download
+      const metadata = WALLET_METADATA[walletName as keyof typeof WALLET_METADATA];
+      if (metadata?.url) {
+        window.open(metadata.url, "_blank");
+      }
+      return;
+    }
+
     try {
       await connect(walletName);
       setIsWalletModalOpen(false);
@@ -41,11 +66,17 @@ export function WalletButton() {
     }
   };
 
-  // Get wallet icon URL
-  const getWalletIcon = (walletName: string) => {
-    const wallet = wallets?.find(w => w.name === walletName);
-    return wallet?.icon || null;
-  };
+  // Merge installed wallets with metadata
+  const allWallets = Object.entries(WALLET_METADATA).map(([key, metadata]) => {
+    const installedWallet = wallets?.find(w => w.name === key);
+    return {
+      name: metadata.name,
+      icon: installedWallet?.icon || metadata.icon,
+      isInstalled: installedWallet?.readyState === "Installed",
+      url: metadata.url,
+    };
+  });
+
 
   if (!isConnected) {
     return (
@@ -63,7 +94,7 @@ export function WalletButton() {
               <DialogTitle>Select a Wallet</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
-              {wallets?.map((wallet) => {
+              {allWallets?.map((wallet) => {
                 const isSelected = currentWallet?.name === wallet.name;
                 return (
                   <Button
