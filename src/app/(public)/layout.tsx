@@ -14,7 +14,7 @@ export default function RootLayout({
         
         {children} 
         {/* Toast Notifications */}
-        <Toaster position="top-right" richColors />
+        <Toaster position="bottom-right" richColors />
         <Footer/>
     </main>
   );    

@@ -3,7 +3,6 @@ import { ArrowRight, TrendingUp, Shield, Zap } from "lucide-react";
 import  TrueFocus from "@/src/components/ui/TrueFocus";
 import TextType from "@/src/components/ui/TextType";
 import CountUp from "@/src/components/ui/CountUp";
-import GlareHover from "@/src/components/ui/GlareHover";
 
 const page = () => {
   
