@@ -1,55 +1,41 @@
+"use client";
+
 import { useCallback, useEffect } from "react";
+import { useWallet as useAptosWallet } from "@aptos-labs/wallet-adapter-react";
 import { useStore } from "@/src/store/useStore";
 import { toast } from "sonner";
+import { getCedraBalance, CEDRA_CONTRACTS } from "../lib/cedraTransaction";
 
-const STORAGE_KEY = "cedra_wallet_address";
-
-// Validate Cedra address format (64 hex characters after 0x)
-const isValidCedraAddress = (address: string): boolean => {
-  return /^0x[a-fA-F0-9]{64}$/.test(address);
-};
+const STORAGE_KEY = "cedra_wallet_connected";
 
 export function useWallet() {
-  const { wallet, setWallet, disconnectWallet } = useStore();
+  const {
+    account,
+    connected,
+    disconnect: aptosDisconnect,
+    wallet,
+    wallets,
+    signAndSubmitTransaction,
+    signMessage,
+    connect: aptosConnect,
+  } = useAptosWallet();
 
-  // Connect wallet with manual address input
+  const { setWallet, disconnectWallet } = useStore();
+
+  // Connect wallet
   const connect = useCallback(
-    async (address: string): Promise<boolean> => {
+    async (walletName?: string): Promise<boolean> => {
       try {
-        const trimmedAddress = address.trim();
-
-        if (!trimmedAddress) {
-          toast.error("Please enter a wallet address");
-          return false;
+        if (connected) {
+          toast.info("Wallet already connected");
+          return true;
         }
 
-        if (!isValidCedraAddress(trimmedAddress)) {
-          toast.error("Invalid Cedra address format", {
-            description:
-              "Address must start with 0x followed by 64 hexadecimal characters",
-          });
-          return false;
+        if (walletName) {
+          await aptosConnect(walletName);
         }
 
-        toast.loading("Connecting wallet...", { id: "wallet-connect" });
-
-        // Simulate network delay
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        setWallet({
-          address: trimmedAddress,
-          isConnected: true,
-          chainId: "cedra-testnet",
-        });
-
-        // Save to localStorage for persistence
-        if (typeof window !== "undefined") {
-          localStorage.setItem(STORAGE_KEY, trimmedAddress);
-        }
-
-        toast.success("Wallet connected successfully", {
-          id: "wallet-connect",
-        });
+        // toast.success("Wallet connected successfully", { id: "wallet-connect" });
         return true;
       } catch (error) {
         console.error("Failed to connect wallet:", error);
@@ -57,99 +43,111 @@ export function useWallet() {
         return false;
       }
     },
-    [setWallet]
+    [connected, aptosConnect]
   );
 
   // Disconnect wallet
-  const disconnect = useCallback(() => {
-    disconnectWallet();
-
-    // Remove from localStorage
-    if (typeof window !== "undefined") {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-
-    toast.success("Wallet disconnected");
-  }, [disconnectWallet]);
-
-  // Format address for display (show more characters for longer Cedra addresses)
-  const formatAddress = useCallback((address: string) => {
-    if (!address) return "";
-    return `${address.slice(0, 8)}...${address.slice(-6)}`;
-  }, []);
-
-  // Get balance from Cedra testnet
-  const getBalance = useCallback(async (): Promise<string> => {
-    if (!wallet.address) return "0";
-
+  const disconnect = useCallback(async () => {
     try {
-      // Call Cedra testnet API to get balance
-      // Note: You may need to adjust the API endpoint based on Cedra's actual API
-      const response = await fetch(`https://rpc.testnet.cedra.network`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          method: "eth_getBalance",
-          params: [wallet.address, "latest"],
-          id: 1,
-        }),
-      });
+      await aptosDisconnect();
+      disconnectWallet();
 
-      const data = await response.json();
-
-      if (data.result) {
-        // Convert from wei to CED (assuming 18 decimals like Ethereum)
-        const balanceInWei = BigInt(data.result);
-        const balanceInCED = Number(balanceInWei) / 1e18;
-        return balanceInCED.toFixed(4);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(STORAGE_KEY);
       }
 
-      return "0.00";
+      toast.success("Wallet disconnected");
+    } catch (error) {
+      console.error("Failed to disconnect:", error);
+      toast.error("Failed to disconnect wallet");
+    }
+  }, [aptosDisconnect, disconnectWallet]);
+
+  // Format address for display - FIX: Add type check
+  const formatAddress = useCallback((address: string | null | undefined) => {
+    if (!address || typeof address !== "string") {
+      return "";
+    }
+    if (address.length < 10) return address;
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  }, []);
+
+  // Get balance
+  const getBalance = useCallback(async (): Promise<string> => {
+    if (!account?.address) return "0";
+
+    try {
+      const balance = await getCedraBalance(String(account.address), CEDRA_CONTRACTS.USDC_TOKEN);
+      return (Number(balance) / 1e8).toFixed(4);
     } catch (error) {
       console.error("Failed to get balance:", error);
       return "0";
     }
-  }, [wallet.address]);
+  }, [account]);
 
   // Copy address to clipboard
   const copyAddress = useCallback(async () => {
-    if (!wallet.address) return;
+    if (!account?.address) return;
 
     try {
-      await navigator.clipboard.writeText(wallet.address);
+      await navigator.clipboard.writeText(String(account.address));
       toast.success("Address copied to clipboard");
     } catch (error) {
+      console.error("Copy failed:", error);
       toast.error("Failed to copy address");
     }
-  }, [wallet.address]);
+  }, [account]);
 
-  // Auto-reconnect on page load if wallet was connected before
+  // Sign and submit transaction
+  const submitTransaction = useCallback(
+    async (payload: any) => {
+      if (!connected || !account) {
+        toast.error("Please connect wallet first");
+        return null;
+      }
+
+      try {
+        const response = await signAndSubmitTransaction({
+          sender: String(account?.address || ""),
+          data: payload,
+        });
+
+        return response;
+      } catch (error) {
+        console.error("Transaction failed:", error);
+        toast.error("Transaction failed");
+        throw error;
+      }
+    },
+    [connected, account, signAndSubmitTransaction]
+  );
+
+  // Update store when wallet state changes
   useEffect(() => {
-    if (typeof window === "undefined" || wallet.isConnected) return;
-
-    const savedAddress = localStorage.getItem(STORAGE_KEY);
-
-    if (savedAddress && isValidCedraAddress(savedAddress)) {
+    if (connected && account?.address) {
       setWallet({
-        address: savedAddress,
+        address: String(account.address),
         isConnected: true,
         chainId: "cedra-testnet",
       });
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, "true");
+      }
     }
-  }, [wallet.isConnected, setWallet]);
+  }, [connected, account, setWallet]);
 
   return {
-    address: wallet.address,
-    isConnected: wallet.isConnected,
-    chainId: wallet.chainId,
+    address: account?.address ? String(account.address) : null,
+    isConnected: connected,
+    wallet,
+    wallets: wallets || [],
     connect,
     disconnect,
     formatAddress,
     getBalance,
     copyAddress,
-    isValidCedraAddress,
+    submitTransaction,
+    signMessage,
   };
 }

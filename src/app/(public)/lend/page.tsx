@@ -10,12 +10,10 @@ import { Slider } from '@/src/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/components/ui/select';
 import { Separator } from '@/src/components/ui/separator';
 import { InfoIcon, TrendingUp, Coins, PiggyBank, AlertCircle } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/src/components/ui/tooltip';
 import { useLending } from '@/src/hooks/useLending';
 import { useWallet } from '@/src/hooks/useWallet';
 import { useMarkets } from '@/src/hooks/useMarkets';
 import { TransactionModal } from '@/src/components/transaction/TransactionModal';
-import { mockDataService } from '@/src/services/mockDataService';
 
 interface TokenOption {
   symbol: string;
@@ -135,7 +133,6 @@ const LendInterface = () => {
   const yearlyEarnings = parseFloat(lendAmount || '0') * (poolData.supplyApy / 100);
   const existingMonthlyEarnings = parseFloat(existingDeposit) * (poolData.supplyApy / 100) / 12;
   const totalSupplied = parseFloat(existingDeposit) + parseFloat(lendAmount || '0');
-  const totalMonthlyEarnings = totalSupplied * (poolData.supplyApy / 100) / 12;
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
@@ -161,7 +158,7 @@ const LendInterface = () => {
               You need to connect a wallet to supply assets and earn yields
             </p>
           </div>
-          <Button onClick={connect} size="sm" variant="outline">
+          <Button onClick={() => connect()} size="sm" variant="outline">
             Connect Wallet
           </Button>
         </div>

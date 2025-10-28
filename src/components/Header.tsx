@@ -6,6 +6,7 @@ import { Moon, Sun, Menu, X } from "lucide-react";
 import { useTheme } from "next-themes";
 import Image from "next/image";
 import { WalletButton } from "./wallet/WalletButton";
+import Link from "next/link";
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -30,26 +31,35 @@ export function Header() {
           {/* Logo */}
           <div className="flex items-center group cursor-pointer">
             {theme === "light" ? (
-              <Image
-                src="/AegisLogo.png"
-                alt="Aegis Logo"
-                width={98}
-                height={98}
-                priority
-              />
+              <Link
+                href="/"
+                >
+                  <Image
+                    src="/AegisLogo.png"
+                    alt="Aegis Logo"
+                    width={98}
+                    height={98}
+                    />    
+              </Link>
             ) : (
-              <Image
-                src="/AegisDarkV1.png"
-                alt="Aegis Logo"
-                width={98}
-                height={98}
-                priority
-              />
+              <Link
+                href="/"
+              >
+                  <Image
+                    src="/AegisDarkV1.png"
+                    alt="Aegis Logo"
+                    width={98}
+                    height={98}
+                    priority
+                  />
+              </Link>
             )}
             <div className="ml-3 flex flex-col">
-              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-                AEGIS
-              </span>
+              <Link href="/">
+                  <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+                    AEGIS
+                  </span>
+              </Link>
               <span className="text-xs text-muted-foreground -mt-1">
                 Protocol
               </span>
