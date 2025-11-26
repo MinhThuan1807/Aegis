@@ -3,10 +3,21 @@
 import { useCallback, useEffect } from "react";
 import { useWallet as useAptosWallet } from "@aptos-labs/wallet-adapter-react";
 import { useStore } from "@/src/store/useStore";
+import { Cedra, CedraConfig, Network } from "@cedra-labs/ts-sdk";
 import { toast } from "sonner";
-import { getCedraBalance, CEDRA_CONTRACTS } from "../lib/cedraTransaction";
+import { getCedraBalance, CEDRA_CONTRACTS, CoinType } from "../lib/cedraTransaction";
 
 const STORAGE_KEY = "cedra_wallet_connected";
+
+// Initialize Cedra client
+const getCedraClient = () => {
+  const network = process.env.NEXT_PUBLIC_CEDRA_NETWORK === "mainnet"
+    ? Network.MAINNET
+    : Network.TESTNET;
+  
+  const config = new CedraConfig({ network });
+  return new Cedra(config);
+};
 
 export function useWallet() {
   const {
@@ -21,6 +32,7 @@ export function useWallet() {
   } = useAptosWallet();
 
   const { setWallet, disconnectWallet } = useStore();
+  const cedraClient = getCedraClient();
 
   // Connect wallet
   const connect = useCallback(
@@ -35,7 +47,10 @@ export function useWallet() {
           await aptosConnect(walletName);
         }
 
-        // toast.success("Wallet connected successfully", { id: "wallet-connect" });
+        const network = process.env.NEXT_PUBLIC_CEDRA_NETWORK || "testnet";
+        toast.success(`Connected to Cedra ${network}`, { 
+          id: "wallet-connect" 
+        });
         return true;
       } catch (error) {
         console.error("Failed to connect wallet:", error);
@@ -77,13 +92,18 @@ export function useWallet() {
     if (!account?.address) return "0";
 
     try {
-      const balance = await getCedraBalance(String(account.address), CEDRA_CONTRACTS.USDC_TOKEN);
-      return (Number(balance) / 1e8).toFixed(4);
+      const balance = await cedraClient.getAccountCoinAmount({
+        accountAddress: account.address.toString(),
+        coinType: "0x1::cedra_coin::CedraCoin", // Native Cedra coin
+      });
+      
+      // Convert from sub-units to CEDRA (1 CEDRA = 100,000,000 sub-units)
+      return (Number(balance) / 100_000_000).toFixed(4);
     } catch (error) {
       console.error("Failed to get balance:", error);
       return "0";
     }
-  }, [account]);
+  }, [account, cedraClient]);
 
   // Copy address to clipboard
   const copyAddress = useCallback(async () => {
@@ -97,6 +117,24 @@ export function useWallet() {
       toast.error("Failed to copy address");
     }
   }, [account]);
+  // Get token balance
+  const getTokenBalance = useCallback(
+    async (tokenAddress: CoinType ): Promise<bigint> => {
+      if (!account?.address) return BigInt(0);
+
+      try {
+        const balance = await cedraClient.getAccountCoinAmount({
+          accountAddress: account.address.toString(),
+          coinType: tokenAddress,
+        });
+        return BigInt(balance);
+      } catch (error) {
+        console.error("Failed to get token balance:", error);
+        return BigInt(0);
+      }
+    },
+    [account, cedraClient]
+  );
 
   // Sign and submit transaction
   const submitTransaction = useCallback(
@@ -122,13 +160,30 @@ export function useWallet() {
     [connected, account, signAndSubmitTransaction]
   );
 
+  // Wait for transaction confirmation
+  const waitForTransaction = useCallback(
+    async (txHash: string) => {
+      try {
+        const result = await cedraClient.waitForTransaction({
+          transactionHash: txHash,
+        });
+        return result;
+      } catch (error) {
+        console.error("Failed to wait for transaction:", error);
+        throw error;
+      }
+    },
+    [cedraClient]
+  );
+
   // Update store when wallet state changes
   useEffect(() => {
     if (connected && account?.address) {
+      const network = process.env.NEXT_PUBLIC_CEDRA_NETWORK || "testnet";
       setWallet({
-        address: String(account.address),
+         address: String(account.address),
         isConnected: true,
-        chainId: "cedra-testnet",
+        chainId: network === "mainnet" ? "1" : "4",
       });
 
       if (typeof window !== "undefined") {
@@ -138,16 +193,28 @@ export function useWallet() {
   }, [connected, account, setWallet]);
 
   return {
+     // Wallet info
     address: account?.address ? String(account.address) : null,
     isConnected: connected,
     wallet,
     wallets: wallets || [],
+    
+    // Actions
     connect,
     disconnect,
     formatAddress,
-    getBalance,
     copyAddress,
+    
+    // Balance
+    getBalance,
+    getTokenBalance,
+    
+    // Transactions
     submitTransaction,
+    waitForTransaction,
     signMessage,
+    
+    // Cedra client
+    cedraClient,
   };
 }
