@@ -8,6 +8,8 @@ import { Badge } from '@/src/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/src/components/ui/table';
 import { Search, TrendingUp, DollarSign, PieChart, Shield, Info, ChevronDown } from 'lucide-react';
 import { Separator } from '@/src/components/ui/separator';
+import { Dialog, DialogContent } from '@/src/components/ui/dialog';
+import { MarketDetails } from '@/src/components/market/MarketDetails';
 
 interface MarketData {
   asset: string;
@@ -22,6 +24,10 @@ interface MarketData {
   utilization: number;
   color: string;
   category: string[];
+}
+
+interface MarketsProps {
+  onMarketSelect?: (symbol: string) => void;
 }
 
 const marketCategories = ['All', 'BTC', 'ETH', 'Stables', 'AEGIS', 'Altcoins'];
@@ -119,10 +125,12 @@ const totalStats = {
   totalBorrowed: 18440000
 };
 
-const Market = () => {
+export default function Markets({ onMarketSelect }: MarketsProps) {
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<{key: keyof MarketData; direction: 'asc' | 'desc'} | null>(null);
+  const [selectedMarket, setSelectedMarket] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const filteredData = marketData.filter(market => {
     const matchesCategory = activeCategory === 'All' || market.category.includes(activeCategory);
@@ -163,6 +171,15 @@ const Market = () => {
       case 'Medium': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
       case 'High': return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
       default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+    }
+  };
+
+  const handleMarketClick = (symbol: string) => {
+    setSelectedMarket(symbol);
+    setIsDialogOpen(true);
+    // Still call the onMarketSelect callback if provided
+    if (onMarketSelect) {
+      onMarketSelect(symbol);
     }
   };
 
@@ -292,6 +309,7 @@ const Market = () => {
                 <TableRow 
                   key={`${market.symbol}-${market.pool}`}
                   className="hover:bg-muted/30 cursor-pointer transition-colors"
+                  onClick={() => handleMarketClick(market.symbol)}
                 >
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -412,7 +430,18 @@ const Market = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Market Details Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="min-w-[650px] max-w-7xl max-h-[90vh] overflow-y-auto">
+          {selectedMarket && (
+            <MarketDetails 
+              symbol={selectedMarket} 
+              onBack={() => setIsDialogOpen(false)} 
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-export default Market;

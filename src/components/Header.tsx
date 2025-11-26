@@ -2,26 +2,37 @@
 
 import { useState } from "react";
 import { Button } from "./ui/button";
-import { Moon, Sun, Menu, X } from "lucide-react";
+import { Moon, Sun, Menu, X, User, SettingsIcon, History } from "lucide-react";
 import { useTheme } from "next-themes";
 import Image from "next/image";
 import { WalletButton } from "./wallet/WalletButton";
 import Link from "next/link";
-
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import { useRouter } from "next/navigation";
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { theme, setTheme } = useTheme();
+  const router = useRouter();
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark");
   };
 
   const navItems = [
+    { label: "Portfolio", href: "/portfolio" },
     { label: "Lend", href: "/lend" },
     { label: "Borrow", href: "/borrow" },
     { label: "Swap", href: "/swap" },
     { label: "Markets", href: "/markets" },
-    { label: "Transactions", href: "/transactions" },
+    { label: "Pool", href: "/pool" },
+    { label: "Analytics", href: "/analytics" },
   ];
 
   return (
@@ -92,6 +103,27 @@ export function Header() {
               <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             </Button>
+
+            {/* User Menu - Desktop */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild className="hidden sm:inline-flex">
+                <Button variant="ghost" size="sm" className="h-9 w-9">
+                  <User className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push('/transactions')}>
+                  <History className="h-4 w-4 mr-2" />
+                  Transactions
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push('/settings')}>
+                  <SettingsIcon className="h-4 w-4 mr-2" />
+                  Settings
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Wallet Button */}
             <div className="hidden sm:block">
