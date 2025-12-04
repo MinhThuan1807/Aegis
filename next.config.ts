@@ -10,11 +10,6 @@ const nextConfig: NextConfig = {
   images: {
     domains: ['images.unsplash.com'],
   },
-  // Webpack config for fallback (if Turbopack doesn't handle it)
-  webpack: (config) => {
-    config.externals = [...(config.externals || []), { canvas: 'canvas' }];
-    return config;
-  },
 };
 
 export default nextConfig;

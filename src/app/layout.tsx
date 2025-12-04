@@ -3,7 +3,7 @@ import { Inter } from 'next/font/google'
 import { ThemeProvider } from '@/src/components/provider/theme-provider'
 import { WalletProvider } from '@/src/components/provider/WalletProvider'
 import './globals.css'
-
+import { Toaster } from "sonner";
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
@@ -31,6 +31,7 @@ export default function RootLayout({
         <WalletProvider>
             {children}
         </WalletProvider>
+        <Toaster position="top-right" richColors />
         </ThemeProvider>
       </body>
     </html>

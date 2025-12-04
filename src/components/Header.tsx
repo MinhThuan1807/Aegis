@@ -5,7 +5,7 @@ import { Button } from "./ui/button";
 import { Moon, Sun, Menu, X, User, SettingsIcon, History } from "lucide-react";
 import { useTheme } from "next-themes";
 import Image from "next/image";
-import { WalletButton } from "./wallet/WalletButton";
+import WalletButton from "./wallet/WalletButton";
 import Link from "next/link";
 import {
   DropdownMenu,
