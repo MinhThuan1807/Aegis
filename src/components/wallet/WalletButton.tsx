@@ -1,166 +1,238 @@
 "use client";
-
-import { useState } from "react";
-import { useWallet } from "@/src/hooks/useWallet";
+import { useWallet } from "@/src/components/provider/WalletProvider";
+import { useState, useEffect } from "react";
+import type { AdapterWallet } from "@cedra-labs/wallet-adapter-core";
 import { Button } from "@/src/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
-import { Wallet, Check } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import { Card, CardContent } from "@/src/components/ui/card";
+import { Wallet, ExternalLink, X } from "lucide-react";
 
-// Wallet metadata cho các ví chưa cài
-const WALLET_METADATA = {
-  Petra: {
-    name: "Petra",
-    icon: "https://petra.app/favicon.ico",
-    url: "https://petra.app/",
-  },
-  Nightly: {
-    name: "Nightly",
-    icon: "https://nightly.app/favicon.ico",
-    url: "https://nightly.app/download",
-  },
-};
+export default function WalletButton() {
+  const walletCore = useWallet();
+  const [isConnected, setIsConnected] = useState(false);
+  const [accountAddress, setAccountAddress] = useState<string | null>(null);
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [availableWallets, setAvailableWallets] = useState<AdapterWallet[]>([]);
 
-export function WalletButton() {
-  const {
-    address,
-    isConnected,
-    disconnect,
-    formatAddress,
-    copyAddress,
-    connect,
-    wallets,
-    wallet: currentWallet,
-  } = useWallet();
+  // Thêm useEffect để check connection state khi component mount
+  useEffect(() => {
+    const initWalletState = () => {
+      const connected = walletCore.isConnected();
+      const address = walletCore.account?.address.toString() || null;
 
-  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+      setIsConnected(connected);
+      setAccountAddress(address);
 
-   const handleWalletSelect = async (walletName: string) => {
-    const installedWallet = wallets?.find(w => w.name === walletName);
-    
-    if (!installedWallet || !installedWallet.readyState) {
-      // Wallet chưa cài, mở link download
-      const metadata = WALLET_METADATA[walletName as keyof typeof WALLET_METADATA];
-      if (metadata?.url) {
-        window.open(metadata.url, "_blank");
-      }
-      return;
-    }
+      console.log("Wallet state initialized:", { connected, address });
+    };
 
+    const updateWalletState = () => {
+      const connected = walletCore.isConnected();
+      const address = walletCore.account?.address.toString() || null;
+
+      setIsConnected(connected);
+      setAccountAddress(address);
+
+      console.log("Wallet state updated:", { connected, address });
+    };
+
+    const updateAvailableWallets = () => {
+      const wallets = walletCore.wallets as AdapterWallet[];
+      setAvailableWallets(wallets);
+      console.log("Available wallets:", wallets.length);
+    };
+
+    // Khởi tạo state ngay khi component mount
+    initWalletState();
+    updateAvailableWallets();
+
+    // Đăng ký listeners
+    walletCore.on("connect", updateWalletState);
+    walletCore.on("disconnect", updateWalletState);
+    walletCore.on("accountChange", updateWalletState);
+    walletCore.on("standardWalletsAdded", updateAvailableWallets);
+
+    // Cleanup
+    return () => {
+      walletCore.off("connect", updateWalletState);
+      walletCore.off("disconnect", updateWalletState);
+      walletCore.off("accountChange", updateWalletState);
+      walletCore.off("standardWalletsAdded", updateAvailableWallets);
+    };
+  }, [walletCore]); // Thêm walletCore vào dependencies
+
+  const handleConnectWallet = async (walletName: string) => {
     try {
-      await connect(walletName);
-      setIsWalletModalOpen(false);
+      console.log(`Connecting to ${walletName}...`);
+      await walletCore.connect(walletName);
+      setShowWalletModal(false);
+      console.log("Connected successfully!");
     } catch (error) {
-      console.error("Failed to connect:", error);
+      console.error("Connect error:", error);
+      alert(
+        `Failed to connect: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   };
 
-  // Merge installed wallets with metadata
-  const allWallets = Object.entries(WALLET_METADATA).map(([key, metadata]) => {
-    const installedWallet = wallets?.find(w => w.name === key);
-    return {
-      name: metadata.name,
-      icon: installedWallet?.icon || metadata.icon,
-      isInstalled: installedWallet?.readyState === "Installed",
-      url: metadata.url,
-    };
-  });
+  const handleDisconnect = async () => {
+    try {
+      await walletCore.disconnect();
+      console.log("Disconnected successfully!");
+    } catch (error) {
+      console.error("Disconnect error:", error);
+    }
+  };
 
-
-  if (!isConnected) {
-    return (
-      <>
-        <Button
-          onClick={() => setIsWalletModalOpen(true)}
-          className="gap-2"
-        >
-          <Wallet className="h-4 w-4" />
-        </Button>
-
-        <Dialog open={isWalletModalOpen} onOpenChange={setIsWalletModalOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Select a Wallet</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3">
-              {allWallets?.map((wallet) => {
-                const isSelected = currentWallet?.name === wallet.name;
-                return (
-                  <Button
-                    key={wallet.name}
-                    onClick={() => handleWalletSelect(wallet.name)}
-                    variant={isSelected ? "default" : "outline"}
-                    className="w-full h-auto py-4 px-4 flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-3">
-                      {wallet.icon && (
-                        <img
-                          src={wallet.icon}
-                          alt={wallet.name}
-                          className="h-8 w-8"
-                        />
-                      )}
-                      <div className="text-left">
-                        <div className="font-semibold">{wallet.name}</div>
-                      </div>
-                    </div>
-                    {isSelected && <Check className="h-5 w-5" />}
-                  </Button>
-                );
-              })}
-            </div>
-          </DialogContent>
-        </Dialog>
-      </>
-    );
-  }
-
-  const displayAddress = address ? formatAddress(address) : "Unknown";
+  const handleOpenModal = () => {
+    if (availableWallets.length === 0) {
+      alert(
+        "No wallets detected. Please install a wallet extension (Petra, Nightly, Zedra, etc.)"
+      );
+      return;
+    }
+    setShowWalletModal(true);
+  };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <Wallet className="h-4 w-4" />
-          {displayAddress}
+    <div>
+      {/* Connect/Disconnect Button */}
+      {isConnected && accountAddress ? (
+        <Button onClick={handleDisconnect} variant="outline" className="gap-2">
+          <Wallet className="w-4 h-4" />
+          {accountAddress.slice(0, 6)}...{accountAddress.slice(-4)}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <div className="px-2 py-1.5">
-          <div className="flex items-center gap-2">
-            {currentWallet?.icon && (
-              <img
-                src={currentWallet.icon}
-                alt={currentWallet.name}
-                className="h-6 w-6"
-              />
+      ) : (
+        <Button onClick={handleOpenModal} className="gap-2">
+          <Wallet className="w-4 h-4" />
+          Connect Wallet
+        </Button>
+      )}
+
+      {/* Wallet Selection Dialog */}
+      <Dialog open={showWalletModal} onOpenChange={setShowWalletModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="w-5 h-5" />
+              Select Wallet
+            </DialogTitle>
+            <DialogDescription>
+              Choose a wallet to connect to your account
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Available Wallets */}
+            {availableWallets.length > 0 ? (
+              <div className="space-y-2">
+                {availableWallets.map((wallet) => (
+                  <Card
+                    key={wallet.name}
+                    className="cursor-pointer transition-all hover:shadow-md hover:border-primary"
+                    onClick={() => handleConnectWallet(wallet.name)}
+                  >
+                    <CardContent className="flex items-center gap-4 p-4">
+                      {wallet.icon && (
+                        <div className="flex-shrink-0">
+                          <img
+                            src={wallet.icon}
+                            alt={wallet.name}
+                            className="w-10 h-10 rounded-lg"
+                          />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-base">{wallet.name}</p>
+                        {wallet.readyState && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {wallet.readyState}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex-shrink-0">
+                        <div className="w-2 h-2 bg-green-500 rounded-full" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <Wallet className="w-12 h-12 text-muted-foreground mb-4" />
+                  <p className="font-medium text-muted-foreground">
+                    No wallets detected
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Please install Petra, Nightly, or Zedra wallet
+                  </p>
+                </CardContent>
+              </Card>
             )}
-            <div>
-              <div className="font-semibold text-sm">{currentWallet?.name}</div>
-              <div className="text-xs text-muted-foreground">{displayAddress}</div>
-            </div>
+
+            {/* Not Detected Wallets */}
+            {walletCore.notDetectedWallets.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-px bg-border flex-1" />
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Available to Install
+                  </p>
+                  <div className="h-px bg-border flex-1" />
+                </div>
+
+                <div className="space-y-2">
+                  {walletCore.notDetectedWallets.map((wallet) => (
+                    <Card
+                      key={wallet.name}
+                      className="cursor-pointer transition-all hover:shadow-md hover:border-primary"
+                    >
+                      <a
+                        href={wallet.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block"
+                      >
+                        <CardContent className="flex items-center gap-4 p-4">
+                          {wallet.icon && (
+                            <div className="flex-shrink-0">
+                              <img
+                                src={wallet.icon}
+                                alt={wallet.name}
+                                className="w-10 h-10 rounded-lg opacity-50"
+                              />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-base">
+                              {wallet.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Not installed
+                            </p>
+                          </div>
+                          <div className="flex-shrink-0">
+                            <ExternalLink className="w-4 h-4 text-primary" />
+                          </div>
+                        </CardContent>
+                      </a>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={copyAddress}>
-          Copy Address
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={disconnect} className="text-red-600">
-          Disconnect
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
